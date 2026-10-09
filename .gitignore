@@ -1,0 +1,16 @@
+node_modules
+
+# Output
+dist
+.cloudflare
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+
+# Cloudflare Vite plugin
+.dev.vars*
