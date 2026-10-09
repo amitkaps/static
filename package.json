@@ -7,7 +7,8 @@
     "dev": "vp dev",
     "build": "vp build",
     "preview": "vp preview",
-    "check": "vp lint && vp fmt --check"
+    "check": "vp lint && vp fmt --check",
+    "fix": "vp lint --fix && vp fmt"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "2.0.0-beta.sha-91c870c02",
