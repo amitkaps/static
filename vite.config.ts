@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 import { cloudflare } from "@cloudflare/vite-plugin";
 
 // Workers Builds sets WORKERS_CI_COMMIT_SHA; local builds fall back to "dev".
