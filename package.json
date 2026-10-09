@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",
-    "preview": "vp preview",
-    "deploy": "vp build && pnpm dlx cf@1.0.0-beta.14 deploy --prebuilt"
+    "preview": "vp preview"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "2.0.0-beta.sha-91c870c02",
