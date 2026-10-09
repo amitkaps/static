@@ -15,6 +15,14 @@ Cloudflare settings live in `vite.config.ts`, in the plugin's `config`: the Work
 name, compatibility date, custom domain and asset handling. The plugin writes them
 into the build output, so no wrangler config file is needed. Wrangler is not used.
 
-Deploys come from a Git-connected Worker, not from this repo. Each push to `main`
-runs the Worker's build settings: build command `pnpm build`, deploy command
-`pnpm dlx cf@1.0.0-beta.14 deploy --prebuilt`, and `NODE_VERSION` 26.
+## Deploy
+
+Deploys come from a Git-connected Worker named `static`, not from this repo. Each
+push to `main` builds and deploys it. Set these in the Worker's dashboard:
+
+```text
+Build command    pnpm build
+Deploy command   pnpm dlx cf@1.0.0-beta.14 deploy --prebuilt
+Root directory   /
+NODE_VERSION     26
+```
