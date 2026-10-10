@@ -38,6 +38,7 @@ const here = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 type Files = Record<string, string>;
 
 type Pkg = {
+  name?: string;
   packageManager?: string;
   devEngines?: {
     packageManager?: { version?: string; onFail?: string };
@@ -138,7 +139,8 @@ const STRICT = [
  * has a site. On Vite+, `fix` is `vp check --fix` everywhere, and `check` runs `vp check`. A
  * framework may add its own steps around it, like SvelteKit's `svelte-kit sync` before and
  * `svelte-check` after, but never a second formatter or linter. A separate `lint` or `fmt`
- * script would only repeat half of `check`. The others differ by kind: a package's
+ * script would only repeat half of `check`. `prose` is `prose` alone, which reads the current
+ * folder, so `pnpm prose build` passes `build` straight through. The others differ by kind: a package's
  * `build` is `vp pack`, and a site's is `vp build`.
  *
  * Anything else, like a package's `size` or `fuzz`, is the repository's own. Names that are
@@ -438,6 +440,11 @@ export const CHECKS: Check[] = [
       }
       if (own && scripts.check && !/(^|&& )vp check( &&|$)/.test(scripts.check)) {
         wrong.push(`check doesn't run vp check`);
+      }
+      // prose takes its command before any folder, so `pnpm prose build` works only when the
+      // script is `prose` alone. prose itself runs its own command line.
+      if (scripts.prose && scripts.prose !== "prose" && pkg.name !== "@amitkaps/prose") {
+        wrong.push(`prose is ${scripts.prose}, not prose`);
       }
       const drift = [
         ...required.filter((name) => !scripts[name]).map((name) => `no ${name} script`),

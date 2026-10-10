@@ -20,6 +20,8 @@ What setting up the repositories' builds and deploys taught, for whoever changes
 
 - **Checking versions found drift the setup checks missed.** prose asked for Node 24 in `devEngines`, had no vite override at all, and two repositories were a minor release behind on markz. Each was a version nobody had looked at since it was set. A tool this repository doesn't use is compared with npm's latest, read at build time.
 
+- **One script name ran two commands.** ship and base ran `prose .`, and markz and sitez ran `prose`. prose reads `build` only as its first argument, so `pnpm prose build` became `prose . build` in two of them. The script is `prose` alone, since it reads the current folder anyway, and the survey checks it.
+
 ## Moving base back
 
 - **A framework needs steps around `vp check`.** SvelteKit generates `$app/tsconfig` and the Worker's types, so `svelte-kit sync` and `wrangler types` run first, and oxlint doesn't type-check `.svelte` files, so `svelte-check` runs after. The standard holds `check` to running `vp check`, not to being only that. `fix` stays exact.
