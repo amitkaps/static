@@ -77,9 +77,9 @@ Every repository uses these names, and runs them with `pnpm run …` in anything
 | `test`   | the tests, when there are any                                             |
 | `verify` | `check`, `test` and `build`, then the site if there is one                |
 | `ship`   | uploads what `verify` built: `cf deploy --prebuilt`, or `wrangler deploy` |
-| `prose`  | reads the repository as a document                                        |
+| `prose`  | reads the repository as a document: `prose`, so `pnpm prose build` works  |
 
-`dev`, `build`, `check`, `fix`, `verify` and `prose` are in every repository. `test` is there when there are tests, and `ship` when there's a site. Any other script is the repository's own, like a package's `size` or `fuzz`, On Vite+, `fix` is exactly `vp check --fix`, and `check` runs `vp check`. A framework can add its own steps around it, like SvelteKit's `svelte-kit sync` before and `svelte-check` after, but no second formatter or linter, and no separate `lint` or `fmt` scripts. The home page lists every script side by side, so two repositories using one name for different jobs shows up.
+`dev`, `build`, `check`, `fix`, `verify` and `prose` are in every repository. `test` is there when there are tests, and `ship` when there's a site. Any other script is the repository's own, like a package's `size` or `fuzz`. On Vite+, `fix` is exactly `vp check --fix`, and `check` runs `vp check`. A framework can add its own steps around it, like SvelteKit's `svelte-kit sync` before and `svelte-check` after, but no second formatter or linter, and no separate `lint` or `fmt` scripts. The home page lists every script side by side, so two repositories using one name for different jobs shows up.
 
 `verify` is what CI runs and what Cloudflare runs before each deploy, so the two can't disagree. `ship` never builds. Some names are pnpm's own commands, and a script by one of those names is skipped by `pnpm <name>`. Don't use `deploy`, `publish`, `audit`, `ci`, `pipeline` or `pack` for a script.
 

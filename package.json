@@ -11,7 +11,7 @@
     "fix": "vp check --fix",
     "verify": "pnpm check && pnpm build",
     "ship": "cf deploy --prebuilt",
-    "prose": "prose .",
+    "prose": "prose",
     "drift": "node scripts/drift.ts",
     "protect": "node scripts/protect.ts"
   },
