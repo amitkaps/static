@@ -53,6 +53,7 @@ The tools every repository shares are on one version. Where this repository uses
 | `typescript`                         | npm's latest, where a repository has it                                               |
 | `@amitkaps/prose`, `@amitkaps/markz` | npm's latest, so a new release of ours shows up everywhere it's used                  |
 | `wrangler`                           | npm's latest, while a repository is still on it                                       |
+| `publint`                            | npm's latest, in every package                                                        |
 
 A repository's own libraries, like svelte or micromark, are its own to choose.
 
@@ -114,6 +115,46 @@ Every `main` takes changes the same way. Work happens on a branch, in a pull req
 ## Agents
 
 Every `AGENTS.md` opens with the same two sections as [this repository's](../AGENTS.md), word for word. "Standard" points at this page, and says how changes reach `main`. "Prose" points at the rules in [prose's usage](https://prose.amitkaps.com/docs/usage.md#for-agents). The rules live there, once, and aren't copied into each repository, since the copies had already started to differ. The rest of an `AGENTS.md` is the repository's own. A `CLAUDE.md` holds only `@AGENTS.md`, so Claude Code reads the same file.
+
+## Releases
+
+markz, prose and sitez are packages, published to npm. A package is any repository whose `package.json` isn't private, and every one releases the same way.
+
+- **The release files** are [package/](../package/README.md)'s, copied into the package unchanged: the release workflow and `.github/release.yml`, which groups the notes. They name no package, so the copies stay identical and the survey checks them word for word.
+- **Packing:** `files` is `["dist"]`, `prepack` is `vp pack`, and `publishConfig.access` is `public`. publint runs inside `vp pack`, with `pack: { publint: { strict: true } }` and `publint` as a dev dependency, so `build` fails on a package npm would serve badly, and there's no separate publint step.
+- **Our own packages are bundled, not depended on.** prose and sitez have markz as a dev dependency, and `vp pack` puts it inside `dist/`. So a package's users never install a second markz, and each package releases on its own, in any order. Picking up a new markz takes a release of the package that bundles it.
+- **Older Node:** when `engines` allows an older Node than `devEngines`, CI tests that one too.
+
+To release, open a pull request that bumps `version`, titled `vX.Y.Z` and labelled `internal`. Its description, down to the first `---` line, is the release's summary, like what to change in a breaking release. Once it's merged, tag that commit and push the tag.
+
+```sh
+git switch main && git pull && git tag v0.5.0 && git push origin v0.5.0
+```
+
+The workflow runs `pnpm run verify`, packs the tarball and stages it on npm with trusted publishing. It then publishes a GitHub Release, with the summary above notes generated from the merged pull requests. You approve the staged version with 2FA, in the **Staged Packages** tab on npmjs.com or with `npm stage approve <id>`. A version with a pre-release part, like `-rc.0`, goes to npm's `next` tag and is marked a pre-release.
+
+### Release notes
+
+There's no changelog file. Each pull request carries one label, which files it under a heading in the notes. `pnpm protect` creates the labels, from [.github/labels.json](../.github/labels.json).
+
+| Label      | Heading            | For                                            |
+| ---------- | ------------------ | ---------------------------------------------- |
+| `breaking` | Breaking           | a change that needs users to update their code |
+| `added`    | Added              | a new feature or warning                       |
+| `fixed`    | Fixed              | a bug fix users would notice                   |
+| `improved` | Faster and smaller | the same behaviour, faster or smaller          |
+| `docs`     | Documentation      | documentation readers use                      |
+| `internal` | left out           | tests, tooling, site and lessons               |
+
+A pull request's title is its line in the notes, so a user-facing one is written for the package's users. One with no label falls under Other, so a missed label shows.
+
+### Setting up a new package
+
+Copy in `package/`'s files, and run `pnpm protect <repo>` for the labels. On npmjs.com, add a trusted publisher for the repository and the workflow `release.yml`, with direct publishing and dist-tags left unchecked, so staging is all it can do. npm may not take that before the package exists. Then publish the first version by hand, from a folder outside the repository, since `npm` refuses to run where `devEngines` names pnpm.
+
+```sh
+pnpm pack && cd /tmp && npm login && npm publish ~/code/<repo>/amitkaps-<repo>-<version>.tgz --access public
+```
 
 ## CI
 
