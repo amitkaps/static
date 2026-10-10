@@ -133,9 +133,10 @@ const STRICT = [
  *
  * Every repository uses the same names for the same jobs, so `pnpm verify` means one thing
  * everywhere. Most are required. `test` is there when a repository has tests, and `ship` when it
- * has a site. On Vite+, `check` and `fix` are also the same commands, `vp check` and
- * `vp check --fix`, since nothing about a repository changes how it checks. A separate `lint`
- * or `fmt` script would only repeat half of `check`. The others differ by kind: a package's
+ * has a site. On Vite+, `fix` is `vp check --fix` everywhere, and `check` runs `vp check`. A
+ * framework may add its own steps around it, like SvelteKit's `svelte-kit sync` before and
+ * `svelte-check` after, but never a second formatter or linter. A separate `lint` or `fmt`
+ * script would only repeat half of `check`. The others differ by kind: a package's
  * `build` is `vp pack`, and a site's is `vp build`.
  *
  * Anything else, like a package's `size` or `fuzz`, is the repository's own. Names that are
@@ -143,7 +144,6 @@ const STRICT = [
  */
 export const SHARED = ["dev", "build", "check", "fix", "test", "verify", "ship", "prose"];
 const REQUIRED = ["dev", "build", "check", "fix", "verify", "prose"];
-const SAME = ["check", "fix"];
 const standardScripts = standard.scripts ?? {};
 const PNPM_COMMANDS = ["deploy", "publish", "audit", "ci", "pipeline", "pack"];
 
@@ -182,7 +182,42 @@ type Repo = {
  * nothing has. It returns `undefined` when it doesn't apply, like the Cloudflare check for a
  * package with no site, or the typescript check for a repository without typescript.
  */
-export type Finding = { value?: string; drift: string[] };
+export type Finding = { value?: string; drift: string[]; held?: string };
+
+/** @prose
+ * # Held
+ *
+ * Some drift can't be fixed yet, because a tool the repository depends on doesn't support the
+ * standard. Each hold names the repository and the check, says why, and says when to look
+ * again. A held check shows amber on the page with its reason, and doesn't fail `pnpm drift`.
+ *
+ * A hold is for what a tool can't do, never for a choice. When the reason goes away, so does
+ * the hold: a held check that has nothing left to hold reports that as drift, so a hold can't
+ * outlive its reason.
+ */
+// cf deploys what its Vite plugin builds. A site that `prose build` writes isn't built by Vite, so
+// `cf deploy` hands it to wrangler, and cf's config has no field for the folder.
+const PROSE_SITE =
+  "cf deploys only a Vite build, and this site is written by prose build. Move when cf's config takes an assets folder.";
+
+const HELD: Record<string, Record<string, string>> = {
+  markz: { Cloudflare: PROSE_SITE },
+  prose: { Cloudflare: PROSE_SITE },
+  base: {
+    typescript: "svelte-check accepts TypeScript 5 and 6 only. Move when its peer range takes 7.",
+    Cloudflare:
+      "cf can't deploy SvelteKit, since the adapter doesn't write cf's Build Output. Move when it does.",
+  },
+};
+
+function hold(repo: string, check: Check, finding: Finding | undefined): Finding | undefined {
+  const reason = HELD[repo]?.[check.name];
+  if (!reason) return finding;
+  if (!finding?.drift.length) {
+    return { ...finding, drift: [`${check.name} is held, but nothing has drifted: drop the hold`] };
+  }
+  return { ...finding, held: reason };
+}
 
 export type Check = {
   name: string;
@@ -326,13 +361,18 @@ export const CHECKS: Check[] = [
     run: ({ pkg, vitePlus: own, worker: site }) => {
       const scripts = pkg.scripts ?? {};
       const required = site ? [...REQUIRED, "ship"] : REQUIRED;
-      // On Vite+, `check` and `fix` are the same commands everywhere, read from this repository.
-      const exact = own
-        ? SAME.filter((name) => scripts[name] && scripts[name] !== standardScripts[name])
-        : [];
+      // On Vite+, `fix` is this repository's exactly, and `check` runs `vp check` among any
+      // steps a framework needs.
+      const wrong: string[] = [];
+      if (own && scripts.fix && scripts.fix !== standardScripts.fix) {
+        wrong.push(`fix is ${scripts.fix}, not ${standardScripts.fix}`);
+      }
+      if (own && scripts.check && !/(^|&& )vp check( &&|$)/.test(scripts.check)) {
+        wrong.push(`check doesn't run vp check`);
+      }
       const drift = [
         ...required.filter((name) => !scripts[name]).map((name) => `no ${name} script`),
-        ...exact.map((name) => `${name} is ${scripts[name]}, not ${standardScripts[name]}`),
+        ...wrong,
         ...(own ? ["lint", "fmt"] : [])
           .filter((name) => scripts[name])
           .map((name) => `has a ${name} script, which check and fix cover`),
@@ -351,6 +391,16 @@ export const CHECKS: Check[] = [
       if (!site) return undefined;
       const drift =
         site.file === "cloudflare.config.ts" ? [] : [`still on wrangler (${site.file})`];
+      return { value: site.file, drift };
+    },
+  },
+  {
+    name: "wrangler.toml",
+    group: "Setup",
+    rule: "a site still on wrangler uses wrangler.toml, whose comments prose reads",
+    run: ({ worker: site }) => {
+      if (!site || site.file === "cloudflare.config.ts") return undefined;
+      const drift = site.file === "wrangler.toml" ? [] : [`${site.file}, not wrangler.toml`];
       return { value: site.file, drift };
     },
   },
@@ -387,7 +437,7 @@ async function check(repo: string, local: boolean, found: Latest): Promise<Resul
   };
   return {
     repo,
-    findings: CHECKS.map((c) => c.run(it)),
+    findings: CHECKS.map((c) => hold(repo, c, c.run(it))),
     scripts: pkg.scripts ?? {},
     worker: it.worker,
   };

@@ -38,6 +38,10 @@ function checkCell(result: Result, index: number): string {
   const value = finding.value ? ` ${code(finding.value)}` : "";
   if (!finding.drift.length) return `<td class="ok">✓${value}</td>`;
   const list = finding.drift.map((d) => `<li>${escape(d)}</li>`).join("");
+  if (finding.held) {
+    const why = `<p class="why">Held: ${escape(finding.held)}</p>`;
+    return `<td class="held">${value.trim()}<ul>${list}</ul>${why}</td>`;
+  }
   return `<td class="bad">${value.trim()}<ul>${list}</ul></td>`;
 }
 

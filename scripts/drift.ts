@@ -6,7 +6,8 @@
  * from GitHub's `main`, as the site does, or from the folders beside this one with `--local`.
  *
  * `--cloudflare` also reads each Worker's build settings from Cloudflare, which needs `cf`
- * logged in and `CLOUDFLARE_ACCOUNT_ID` set. That check stays here and off the site, since
+ * logged in and `CLOUDFLARE_ACCOUNT_ID` set. A held check is printed with its reason, and doesn't
+ * count as drift. That check stays here and off the site, since
  * the build has no Cloudflare login.
  */
 import { execFileSync } from "node:child_process";
@@ -62,10 +63,13 @@ function builds(name: string): string[] {
 
 let drifted = false;
 for (const result of await survey({ local })) {
-  const drift = result.error ? [result.error] : result.findings.flatMap((f) => f?.drift ?? []);
+  const findings = result.findings.flatMap((f) => (f ? [f] : []));
+  const drift = result.error ? [result.error] : findings.flatMap((f) => (f.held ? [] : f.drift));
   if (cloudflare && result.worker) drift.push(...builds(result.worker.name));
+  const held = findings.filter((f) => f.held);
   drifted ||= drift.length > 0;
   console.log(drift.length ? `✗ ${result.repo}` : `✓ ${result.repo}`);
   for (const line of drift) console.log(`    ${line}`);
+  for (const f of held) console.log(`    held: ${f.drift.join("; ")}\n      ${f.held}`);
 }
 process.exitCode = drifted ? 1 : 0;

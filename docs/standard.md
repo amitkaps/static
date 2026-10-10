@@ -56,6 +56,12 @@ The tools every repository shares are on one version. Where this repository uses
 
 A repository's own libraries, like svelte or micromark, are its own to choose.
 
+## Held
+
+When a tool a repository depends on can't support the standard yet, the check is held: it shows amber on the home page with its reason, and doesn't fail `pnpm drift`. Each hold says when to look again, like svelte-check accepting TypeScript 7. Holds are listed in [scripts/survey.ts](../scripts/survey.ts).
+
+A hold is for what a tool can't do, never for a preference. The point of one standard is that a choice like Vite+ is made once and paid for once, not argued again in each repository. A hold whose check stops drifting fails `pnpm drift` until it's removed, so none outlives its reason.
+
 `pnpm-workspace.yaml` is a settings file, not a workspace. Every repository has the same three settings: `minimumReleaseAge`, `allowBuilds` (esbuild and workerd, when wrangler or the Cloudflare plugin is installed), and the Vite+ override.
 
 ## Scripts
@@ -66,14 +72,14 @@ Every repository uses these names, and runs them with `pnpm run …` in anything
 | -------- | ------------------------------------------------------------------------- |
 | `dev`    | the dev server, or `vp pack --watch` for a package                        |
 | `build`  | the production build                                                      |
-| `check`  | format, lint and types: `vp check`                                        |
+| `check`  | format, lint and types: `vp check`, and a framework's own checker         |
 | `fix`    | writes the format and lint fixes: `vp check --fix`                        |
 | `test`   | the tests, when there are any                                             |
 | `verify` | `check`, `test` and `build`, then the site if there is one                |
 | `ship`   | uploads what `verify` built: `cf deploy --prebuilt`, or `wrangler deploy` |
 | `prose`  | reads the repository as a document                                        |
 
-`dev`, `build`, `check`, `fix`, `verify` and `prose` are in every repository. `test` is there when there are tests, and `ship` when there's a site. Any other script is the repository's own, like a package's `size` or `fuzz`, On Vite+, `check` and `fix` are exactly `vp check` and `vp check --fix`, with no separate `lint` or `fmt` scripts. The home page lists every script side by side, so two repositories using one name for different jobs shows up.
+`dev`, `build`, `check`, `fix`, `verify` and `prose` are in every repository. `test` is there when there are tests, and `ship` when there's a site. Any other script is the repository's own, like a package's `size` or `fuzz`, On Vite+, `fix` is exactly `vp check --fix`, and `check` runs `vp check`. A framework can add its own steps around it, like SvelteKit's `svelte-kit sync` before and `svelte-check` after, but no second formatter or linter, and no separate `lint` or `fmt` scripts. The home page lists every script side by side, so two repositories using one name for different jobs shows up.
 
 `verify` is what CI runs and what Cloudflare runs before each deploy, so the two can't disagree. `ship` never builds. Some names are pnpm's own commands, and a script by one of those names is skipped by `pnpm <name>`. Don't use `deploy`, `publish`, `audit`, `ci`, `pipeline` or `pack` for a script.
 
@@ -81,7 +87,7 @@ Every repository uses these names, and runs them with `pnpm run …` in anything
 
 A repository with a site deploys it to a Cloudflare Worker with static assets.
 
-- **Config:** `cloudflare.config.ts`, cf's typed config, is the target. A repository that cf can't deploy yet keeps `wrangler.toml` or `wrangler.jsonc`. Either way, the file holds the Worker's name, compatibility date, domain and asset handling.
+- **Config:** `cloudflare.config.ts`, cf's typed config, is the target. A repository that cf can't deploy yet keeps `wrangler.toml`, never `wrangler.jsonc`, since prose reads comments in TOML but not in JSONC. Either way, the file holds the Worker's name, compatibility date, domain and asset handling.
 - **Deploys:** the Worker's Git integration (Workers Builds) builds and deploys `main`. There's no deploy step in GitHub Actions, and no API token or secret.
 - **The Worker's settings** are the same on every Worker. Cloudflare's config has no field for them, so they're set in the dashboard, or with `cf builds triggers update`, and `pnpm drift --cloudflare` checks them.
 

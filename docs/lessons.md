@@ -20,6 +20,13 @@ What setting up the repositories' builds and deploys taught, for whoever changes
 
 - **Checking versions found drift the setup checks missed.** prose asked for Node 24 in `devEngines`, had no vite override at all, and two repositories were a minor release behind on markz. Each was a version nobody had looked at since it was set. A tool this repository doesn't use is compared with npm's latest, read at build time.
 
+## Moving base back
+
+- **A framework needs steps around `vp check`.** SvelteKit generates `$app/tsconfig` and the Worker's types, so `svelte-kit sync` and `wrangler types` run first, and oxlint doesn't type-check `.svelte` files, so `svelte-check` runs after. The standard holds `check` to running `vp check`, not to being only that. `fix` stays exact.
+- **Moving between toolchains needs a fresh lockfile.** A lockfile keeps the optional peers it already resolved, so base needed `node_modules` and `pnpm-lock.yaml` removed before installing.
+- **Dependabot can't bump Vite+ alone.** The override in `pnpm-workspace.yaml` has to move with it, and Dependabot doesn't edit that file, so it ignores `vite-plus`. Vite+ moves from here, in every repository at once.
+- **wrangler.jsonc hides its comments from prose.** prose reads comments in `.toml` but not `.jsonc`, so a repository still on wrangler uses `wrangler.toml`.
+
 ## Cloudflare
 
 - **The Git integration deploys whether or not GitHub CI passed.** The fix is a build command that runs the checks. `pnpm run verify` fails first, and nothing deploys.
@@ -27,7 +34,8 @@ What setting up the repositories' builds and deploys taught, for whoever changes
 - **The Git integration installs dependencies itself.** A build command that starts with `pnpm install &&` installs twice.
 - **The integration reads pnpm's version from the repository, but not Node's.** Set `NODE_VERSION` on every Worker, or `devEngines` stops the build on the default Node.
 - **cf can't deploy SvelteKit yet.** The adapter doesn't write cf's Build Output, so base stays on wrangler. Its lessons have the detail.
-- **cf deploys an assets-only Vite site.** `@cloudflare/vite-plugin` with `assetsOnly: true` writes the Build Output, and `cf deploy --prebuilt` uploads it. A site that isn't built by Vite, like prose's `.prose` folder, hasn't been tried with cf.
+- **cf deploys an assets-only Vite site.** `@cloudflare/vite-plugin` with `assetsOnly: true` writes the Build Output, and `cf deploy --prebuilt` uploads it.
+- **cf can't deploy a folder that Vite didn't build.** Tried on markz, whose site `prose build` writes into `.prose`. cf's config has no `assets.directory`, as of cf 1.0.0-beta.14 and `@cloudflare/config` 0.24.1. Without `--prebuilt`, `cf deploy` delegates to wrangler. `cf pages deploy` takes a folder, but that's Pages, not a Worker. So markz and prose stay on wrangler, held, until cf's config takes a folder.
 - **cf has no command to rename a Worker, but the dashboard does.** Settings → General → Name renames it in place, keeping its ID, Git connection and domains. Rename it there first, then change the name in the config, since a different name in the config deploys to a different Worker.
 - **Reconnecting a repository resets the Worker's build settings.** After the GitHub repository was renamed and reconnected, the commands went back to `pnpm run build` and `npx wrangler deploy`, `NODE_VERSION` was gone, the cache was off and previews were on. Check them after any reconnect, with `pnpm drift --cloudflare`.
 - **The config lists the Worker's domains too.** Change a domain in the dashboard and in `cloudflare.config.ts` together, so a deploy can't put the old one back.

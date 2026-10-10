@@ -18,6 +18,8 @@
         --ok: #1a7f37;
         --bad: #b42318;
         --bad-bg: #fef3f2;
+        --held: #8a5a00;
+        --held-bg: #fdf6e3;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -28,6 +30,8 @@
           --ok: #4ac26b;
           --bad: #ff8b80;
           --bad-bg: #2a1614;
+          --held: #e3b341;
+          --held-bg: #261f0e;
         }
       }
       body {
@@ -117,6 +121,14 @@
       .bad {
         color: var(--bad);
         background: var(--bad-bg);
+      }
+      .held {
+        color: var(--held);
+        background: var(--held-bg);
+      }
+      .why {
+        margin: 6px 0 0;
+        font-size: 0.8rem;
       }
       .na {
         color: var(--muted);
