@@ -13,7 +13,8 @@
     "ship": "cf deploy --prebuilt",
     "prose": "prose",
     "drift": "node scripts/drift.ts",
-    "protect": "node scripts/protect.ts"
+    "protect": "node scripts/protect.ts",
+    "release": "node scripts/release.ts"
   },
   "devDependencies": {
     "@amitkaps/prose": "^0.4.0",
