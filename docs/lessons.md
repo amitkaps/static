@@ -35,6 +35,13 @@ What setting up the repositories' builds and deploys taught, for whoever changes
 - **GitHub shows a public repository's branch rules to anyone, but not its merge settings.** `GET /repos/{owner}/{repo}/rules/branches/main` works without a login, so the home page checks the rules. Settings like squash-only need the owner's token, so `pnpm drift --github` checks those.
 - **Copied rules drift.** The `@prose` rules were copied into four `AGENTS.md` files and had already started to differ. Each `AGENTS.md` now links to the one copy in prose's docs, and the survey checks the link section is the same everywhere.
 
+## Releases
+
+- **Three copies of one release workflow had drifted.** markz staged with pnpm and sent pre-releases to `next`. prose and sitez staged with npm from a temporary folder, and skipped a version already on npm. Only markz ran its size budget, and only markz had labels, so prose's notes listed every pull request, plans included. The workflow now names no package, so one file is copied everywhere and checked word for word.
+- **publint needn't be a separate step.** `vp pack` runs it with `publint: { strict: true }` in the `pack` block, and fails the build on a problem, which was tested by pointing `exports` at a missing file. It needs `publint` installed, or the pack fails with "Failed to import module".
+- **A summary in an annotated tag can't be reviewed or fixed.** markz's breaking release put what to change in the tag's message. It's now the description of the pull request that bumps the version, which is reviewed like any change, and the workflow reads it from the tagged commit.
+- **Bundling our own packages removes the release order.** prose already had markz as a dev dependency, inside its `dist/`, so it depends on nothing at install time. sitez's published types never mention markz, so it can do the same, and then any package can release at any time.
+
 ## Cloudflare
 
 - **The Git integration deploys whether or not GitHub CI passed.** The fix is a build command that runs the checks. `pnpm run verify` fails first, and nothing deploys.

@@ -10,8 +10,13 @@
  * protection is removed, so there's one set of rules to read. The merge settings come from
  * [.github/settings.json](../.github/settings.json): squash only, branches deleted after merging,
  * and auto-merge on.
+ *
+ * A package, whose `package.json` isn't private, also gets the labels its release notes are
+ * grouped by, from [.github/labels.json](../.github/labels.json). Each is created, or updated when
+ * it exists. Other labels are left alone.
  */
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { OWNER, REPOS } from "./survey.ts";
@@ -19,6 +24,11 @@ import { OWNER, REPOS } from "./survey.ts";
 const here = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ruleset = join(here, ".github", "ruleset.json");
 const settings = join(here, ".github", "settings.json");
+const labels = JSON.parse(readFileSync(join(here, ".github", "labels.json"), "utf8")) as {
+  name: string;
+  color: string;
+  description: string;
+}[];
 
 const gh = (...args: string[]): string => execFileSync("gh", args, { encoding: "utf8" });
 
@@ -38,6 +48,26 @@ for (const repo of named.length ? named : REPOS) {
       stdio: "ignore",
     });
   } catch {}
+
+  const pkg = JSON.parse(
+    gh("api", `${api}/contents/package.json`, "-H", "Accept: application/vnd.github.raw"),
+  ) as { private?: boolean };
+  if (!pkg.private) {
+    for (const { name, color, description } of labels) {
+      gh(
+        "label",
+        "create",
+        name,
+        "-R",
+        `${OWNER}/${repo}`,
+        "--color",
+        color,
+        "--description",
+        description,
+        "--force",
+      );
+    }
+  }
 
   console.log(`✓ ${repo}`);
 }

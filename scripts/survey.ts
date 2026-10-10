@@ -31,6 +31,9 @@ const FILES = [
   "wrangler.toml",
   "AGENTS.md",
   "CLAUDE.md",
+  ".github/workflows/ci.yml",
+  ".github/workflows/release.yml",
+  ".github/release.yml",
 ];
 
 const here = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -39,6 +42,9 @@ type Files = Record<string, string>;
 
 type Pkg = {
   name?: string;
+  private?: boolean;
+  files?: string[];
+  publishConfig?: { access?: string };
   packageManager?: string;
   devEngines?: {
     packageManager?: { version?: string; onFail?: string };
@@ -92,7 +98,7 @@ const major = (version = ""): string | undefined => /\d+/.exec(version)?.[0];
  *
  * A failed lookup shows in that row, rather than failing the survey.
  */
-const LATEST = ["typescript", "wrangler", "@amitkaps/prose", "@amitkaps/markz"];
+const LATEST = ["typescript", "wrangler", "publint", "@amitkaps/prose", "@amitkaps/markz"];
 
 type Latest = Record<string, string | Error>;
 
@@ -217,6 +223,38 @@ function rulesDrift(found: Rule[]): string[] {
 }
 
 /** @prose
+ * # Packages
+ *
+ * A repository whose `package.json` isn't private is a package, published to npm. Every package
+ * releases the same way, with the files in [package/](../package/README.md) copied in unchanged,
+ * and labels its pull requests with the labels in [.github/labels.json](../.github/labels.json),
+ * which its release notes are grouped by. GitHub shows a public repository's labels to anyone.
+ *
+ * A package bundles our other packages rather than depending on them, so each releases on its
+ * own and a user never installs two versions that disagree.
+ */
+const RELEASE_FILES = [".github/workflows/release.yml", ".github/release.yml"];
+const released = Object.fromEntries(
+  RELEASE_FILES.map((file) => [file, read(join(here, "package", file))]),
+);
+const labelNames = (
+  JSON.parse(read(join(here, ".github", "labels.json"))) as { name: string }[]
+).map((label) => label.name);
+
+async function repoLabels(repo: string): Promise<string[] | Error> {
+  try {
+    const token = process.env["GITHUB_TOKEN"];
+    const res = await fetch(`https://api.github.com/repos/${OWNER}/${repo}/labels?per_page=100`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`GitHub returned HTTP ${res.status}`);
+    return ((await res.json()) as { name: string }[]).map((label) => label.name);
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+/** @prose
  * # The agents' instructions
  *
  * Every `AGENTS.md` opens with the same two sections, word for word as in this repository's:
@@ -242,6 +280,7 @@ type Repo = {
   worker?: Worker;
   latest: Latest;
   rules: Rule[] | Error;
+  labels?: string[] | Error;
 };
 
 /** @prose
@@ -292,7 +331,7 @@ function hold(repo: string, check: Check, finding: Finding | undefined): Finding
 
 export type Check = {
   name: string;
-  group: "Versions" | "Setup";
+  group: "Versions" | "Setup" | "Release";
   rule: string;
   run: (repo: Repo) => Finding | undefined;
 };
@@ -398,6 +437,7 @@ export const CHECKS: Check[] = [
   toOurs("cf"),
   toOurs("@cloudflare/vite-plugin"),
   toLatest("wrangler", "npm's latest, while a repository is still on it"),
+  toLatest("publint", "npm's latest, in every package"),
   {
     name: "Types",
     group: "Setup",
@@ -505,6 +545,64 @@ export const CHECKS: Check[] = [
       return { drift };
     },
   },
+  {
+    name: "Release workflow",
+    group: "Release",
+    rule: "a package's release.yml and notes config are ship's, word for word",
+    run: ({ pkg, files }) => {
+      if (pkg.private) return undefined;
+      const drift = RELEASE_FILES.flatMap((file) => {
+        if (!files[file]) return [`no ${file}`];
+        return files[file] === released[file] ? [] : [`${file} differs from ship's`];
+      });
+      return { drift };
+    },
+  },
+  {
+    name: "Package",
+    group: "Release",
+    rule: "packs dist with publint, publishes publicly, bundles our packages, and CI runs the oldest Node",
+    run: ({ pkg, files, deps }) => {
+      if (pkg.private) return undefined;
+      const drift: string[] = [];
+      if (pkg.scripts?.prepack !== "vp pack")
+        drift.push(`prepack is ${pkg.scripts?.prepack}, not vp pack`);
+      if (JSON.stringify(pkg.files) !== '["dist"]')
+        drift.push(`files is ${JSON.stringify(pkg.files)}, not ["dist"]`);
+      if (pkg.publishConfig?.access !== "public") drift.push("publishConfig.access isn't public");
+      if (!deps.publint) drift.push("no publint dev dependency");
+      if (!/publint:\s*\{[^}]*strict:\s*true/.test(files["vite.config.ts"] ?? "")) {
+        drift.push("pack doesn't run publint with strict: true");
+      }
+      for (const name of Object.keys(pkg.dependencies ?? {})) {
+        if (name.startsWith("@amitkaps/"))
+          drift.push(`depends on ${name}, rather than bundling it`);
+      }
+      // A package may support an older Node than it's developed on, and CI tests that one too.
+      const oldest = major(pkg.engines?.node);
+      if (oldest && oldest !== major(pkg.devEngines?.runtime?.version)) {
+        const ci = files[".github/workflows/ci.yml"] ?? "";
+        if (!new RegExp(`node-version:\\s*${oldest}\\b`).test(ci)) {
+          drift.push(`engines allows Node ${oldest}, but CI doesn't test it`);
+        }
+      }
+      return { drift };
+    },
+  },
+  {
+    name: "Labels",
+    group: "Release",
+    rule: "a package has the labels its release notes are grouped by",
+    run: ({ pkg, labels }) => {
+      if (pkg.private || !labels) return undefined;
+      if (labels instanceof Error) return { drift: [`GitHub couldn't be read: ${labels.message}`] };
+      return {
+        drift: labelNames
+          .filter((name) => !labels.includes(name))
+          .map((name) => `no ${name} label`),
+      };
+    },
+  },
 ];
 
 export type Result = {
@@ -537,6 +635,7 @@ async function check(repo: string, local: boolean, found: Latest): Promise<Resul
     worker: worker(files),
     latest: found,
     rules: await rules,
+    labels: pkg.private ? undefined : await repoLabels(repo),
   };
   return {
     repo,
