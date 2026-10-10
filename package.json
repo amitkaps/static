@@ -10,9 +10,12 @@
     "check": "vp lint && vp fmt --check",
     "fix": "vp lint --fix && vp fmt",
     "verify": "pnpm check && pnpm build",
-    "ship": "cf deploy --prebuilt"
+    "ship": "cf deploy --prebuilt",
+    "prose": "prose .",
+    "drift": "node scripts/drift.ts"
   },
   "devDependencies": {
+    "@amitkaps/prose": "^0.4.0",
     "@cloudflare/vite-plugin": "2.0.0-beta.sha-91c870c02",
     "@types/node": "^26.6.4",
     "cf": "1.0.0-beta.14",

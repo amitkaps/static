@@ -1,47 +1,42 @@
 # static
 
-A minimal static site: one `index.html` and a `404.html`, built with Vite, for Cloudflare.
-Live at `static.amitkaps.com`.
+How every repository builds, checks and deploys, kept as one working example. [The standard](docs/standard.md) says what the one way is, and [the lessons](docs/lessons.md) say why. This repository follows it exactly, and `pnpm drift` checks the others against it.
+
+It's also a live site, at `static.amitkaps.com`: a minimal static site, with one `index.html` and a `404.html`, built with Vite+ and deployed to Cloudflare with cf. Any new site starts by copying it.
 
 ```sh
-# needs Node 26 — package.json (devEngines) pins it; pnpm fetches its pinned version
+# needs Node 26: package.json (devEngines) pins it, and pnpm fetches its own pinned version
 pnpm install
 pnpm dev          # local dev server
-pnpm build        # writes .cloudflare/output/
-pnpm preview      # serve the build locally
-pnpm verify       # check + build: what every deploy runs
+pnpm verify       # check + build: what CI and every deploy run
 pnpm ship         # upload the last build (normally left to the Git integration)
+pnpm prose        # read the repository as a document
+pnpm drift        # check every repository against the standard
 ```
 
-Cloudflare settings live in `cloudflare.config.ts`: the Worker name, compatibility
-date, custom domain and asset handling. The Vite plugin reads it and writes them
-into the build output, so no wrangler config file is needed. Wrangler is not used.
+## What's here
+
+```text
+index.html, 404.html    the site's two pages
+vite.config.ts          the build: Vite+, and the Cloudflare plugin
+cloudflare.config.ts    the Worker: name, domain and asset handling
+pnpm-workspace.yaml     pnpm's settings, the same in every repository
+.github/workflows/      CI, which runs pnpm run verify
+docs/                   the standard and its lessons
+scripts/                pnpm drift
+```
 
 ## Deploy
 
-Deploys come from a Git-connected Worker named `static`. Each push to `main`
-builds and deploys it. Set these in the Worker's dashboard:
-
-```text
-Build command    pnpm run verify
-Deploy command   pnpm run ship
-Root directory   /
-NODE_VERSION     26
-```
-
-The two commands are the same in every project; `package.json` decides what they
-run. `verify` fails on a bad check, so a failing check never deploys. Write
-`pnpm run ship`, never `pnpm deploy`, which is a built-in pnpm command.
+The Worker `static` is connected to this repository, and each push to `main` builds and deploys it. Its dashboard settings are the ones every Worker has, listed in [the standard](docs/standard.md#cloudflare).
 
 ## Beta packages
 
-Two packages are still beta. Check them with `pnpm view <name> dist-tags`:
+Two packages are still beta. Check them with `pnpm view <name> dist-tags`.
 
 | Package                   | Pinned                     | Status (2026-10-09)                 | Done when                      |
 | ------------------------- | -------------------------- | ----------------------------------- | ------------------------------ |
 | `@cloudflare/vite-plugin` | `2.0.0-beta.sha-91c870c02` | `beta` tag only; `latest` is 1.63.1 | `latest` is a 2.x release      |
 | `cf`                      | `1.0.0-beta.14`            | `latest` is the beta                | `latest` is a non-beta release |
 
-When a package graduates, update the pins in `package.json` and the
-table above. Then run `pnpm run verify` and a deploy from the Git-connected
-Worker before you rely on it.
+When a package graduates, update the pins in `package.json` and the table above. Then run `pnpm run verify` and a deploy from the Git-connected Worker before you rely on it.

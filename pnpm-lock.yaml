@@ -169,6 +169,9 @@ importers:
 
   .:
     devDependencies:
+      '@amitkaps/prose':
+        specifier: ^0.4.0
+        version: 0.4.0
       '@cloudflare/vite-plugin':
         specifier: 2.0.0-beta.sha-91c870c02
         version: 2.0.0-beta.sha-91c870c02(@types/node@26.6.4)(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.4)(esbuild@0.28.2))(workerd@1.20261006.1)
@@ -183,6 +186,11 @@ importers:
         version: 1.1.0(@types/node@26.6.4)(@vitest/ui@5.0.3)(esbuild@0.28.2)
 
 packages:
+
+  '@amitkaps/prose@0.4.0':
+    resolution: {integrity: sha512-J6RBofy1qbnFG4EtpvRu22lR7JHeuue5FQqUy8JZdla/lkvFiDOZW4zHqC+RII4l6aUlRsEjEW2kH+YezfsWwA==}
+    engines: {node: '>=24'}
+    hasBin: true
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -1640,6 +1648,8 @@ packages:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
 snapshots:
+
+  '@amitkaps/prose@0.4.0': {}
 
   '@babel/code-frame@7.29.7':
     dependencies:

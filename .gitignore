@@ -3,6 +3,7 @@ node_modules
 # Output
 dist
 .cloudflare
+.prose
 
 # OS
 .DS_Store

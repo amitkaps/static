@@ -1,0 +1,24 @@
+# Lessons
+
+What setting up the repositories' builds and deploys taught, for whoever changes them next. Each lesson says what happened and what to do about it. Lessons that belong to one repository stay there, like SvelteKit's in base's `src/content/lessons.md`.
+
+## pnpm
+
+- **An exact pin with `onFail: error` breaks on every pnpm release.** A newer global pnpm refused to run with `ERR_PNPM_BAD_PM_VERSION`. `onFail: download` makes pnpm fetch and run the pinned version instead, which was tested with a global 12.10.1 and a pinned 12.9.1. A range in `devEngines` also works, but lets machines run different versions.
+- **Some script names never run.** `pnpm deploy`, `pnpm audit`, `pnpm publish` and `pnpm ci` are pnpm's own commands, so a script by one of those names is skipped. That's why the deploy script is `ship` and the drift check is `drift`.
+- **`npx` refuses to run in a repository whose `devEngines` names pnpm.** Use `pnpm exec` for an installed tool, and `pnpm dlx` for one that isn't.
+
+## Cloudflare
+
+- **The Git integration deploys whether or not GitHub CI passed.** The fix is a build command that runs the checks. `pnpm run verify` fails first, and nothing deploys.
+- **The build and deploy commands can't live in the repository.** `cloudflare.config.ts` has no field for them, as of cf 1.0.0-beta.14 and `@cloudflare/config` 0.24.1. So the dashboard holds two commands that never change, and `package.json` decides what they run.
+- **The Git integration installs dependencies itself.** A build command that starts with `pnpm install &&` installs twice.
+- **The integration reads pnpm's version from the repository, but not Node's.** Set `NODE_VERSION` on every Worker, or `devEngines` stops the build on the default Node.
+- **cf can't deploy SvelteKit yet.** The adapter doesn't write cf's Build Output, so base stays on wrangler. Its lessons have the detail.
+- **cf deploys an assets-only Vite site.** `@cloudflare/vite-plugin` with `assetsOnly: true` writes the Build Output, and `cf deploy --prebuilt` uploads it. A site that isn't built by Vite, like prose's `.prose` folder, hasn't been tried with cf.
+- **cf has no command to rename a Worker.** Rename it in the dashboard, then change the name in the config, in that order.
+- **cf needs `CLOUDFLARE_ACCOUNT_ID` when the login has several accounts.** It won't pick one in a script.
+
+## Docs
+
+- **A hand-written `.html` page ships its comments.** Vite doesn't strip them, so a `<!-- @prose -->` would show in the page source. Pages here carry no prose, and the README says what they are.
