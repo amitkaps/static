@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const REPOS = ["base", "markz", "prose", "sitez", "static"];
+const REPOS = ["base", "markz", "prose", "sitez", "ship"];
 
 const here = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const parent = dirname(here);

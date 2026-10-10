@@ -1,8 +1,8 @@
-# static
+# ship
 
 How every repository builds, checks and deploys, kept as one working example. [The standard](docs/standard.md) says what the one way is, and [the lessons](docs/lessons.md) say why. This repository follows it exactly, and `pnpm drift` checks the others against it.
 
-It's also a live site, at `static.amitkaps.com`: a minimal static site, with one `index.html` and a `404.html`, built with Vite+ and deployed to Cloudflare with cf. Any new site starts by copying it.
+It's also a live site, at `ship.amitkaps.com`: a minimal static site, with one `index.html` and a `404.html`, built with Vite+ and deployed to Cloudflare with cf. Any new site starts by copying it.
 
 ```sh
 # needs Node 26: package.json (devEngines) pins it, and pnpm fetches its own pinned version
@@ -28,7 +28,7 @@ scripts/                pnpm drift
 
 ## Deploy
 
-The Worker `static` is connected to this repository, and each push to `main` builds and deploys it. Its dashboard settings are the ones every Worker has, listed in [the standard](docs/standard.md#cloudflare).
+The Worker `ship` is connected to this repository, and each push to `main` builds and deploys it. Its dashboard settings are the ones every Worker has, listed in [the standard](docs/standard.md#cloudflare).
 
 ## Beta packages
 

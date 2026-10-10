@@ -16,7 +16,9 @@ What setting up the repositories' builds and deploys taught, for whoever changes
 - **The integration reads pnpm's version from the repository, but not Node's.** Set `NODE_VERSION` on every Worker, or `devEngines` stops the build on the default Node.
 - **cf can't deploy SvelteKit yet.** The adapter doesn't write cf's Build Output, so base stays on wrangler. Its lessons have the detail.
 - **cf deploys an assets-only Vite site.** `@cloudflare/vite-plugin` with `assetsOnly: true` writes the Build Output, and `cf deploy --prebuilt` uploads it. A site that isn't built by Vite, like prose's `.prose` folder, hasn't been tried with cf.
-- **cf has no command to rename a Worker.** Rename it in the dashboard, then change the name in the config, in that order.
+- **cf has no command to rename a Worker, but the dashboard does.** Settings → General → Name renames it in place, keeping its ID, Git connection and domains. Rename it there first, then change the name in the config, since a different name in the config deploys to a different Worker.
+- **Reconnecting a repository resets the Worker's build settings.** After the GitHub repository was renamed and reconnected, the commands went back to `pnpm run build` and `npx wrangler deploy`, `NODE_VERSION` was gone, the cache was off and previews were on. Check them after any reconnect, with `pnpm drift --cloudflare`.
+- **The config lists the Worker's domains too.** Change a domain in the dashboard and in `cloudflare.config.ts` together, so a deploy can't put the old one back.
 - **cf needs `CLOUDFLARE_ACCOUNT_ID` when the login has several accounts.** It won't pick one in a script.
 
 ## Docs
