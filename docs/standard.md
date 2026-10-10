@@ -125,7 +125,7 @@ markz, prose and sitez are packages, published to npm. A package is any reposito
 - **Packing:** `files` is `["dist"]`, `prepack` is `vp pack`, and `publishConfig.access` is `public`. publint runs inside `vp pack`, with `pack: { publint: { strict: true } }` and `publint` as a dev dependency, so `build` fails on a package npm would serve badly, and there's no separate publint step.
 - **Our own packages are bundled, not depended on.** prose and sitez have markz as a dev dependency, and `vp pack` puts it inside `dist/`. So a package's users never install a second markz, and each package releases on its own, in any order. Picking up a new markz takes a release of the package that bundles it.
 
-To release, open a pull request that bumps `version`, titled `vX.Y.Z` and labelled `internal`. Its description, down to the first `---` line, is the release's summary, like what to change in a breaking release. Once it's merged, tag that commit and push the tag.
+To release, open a pull request that bumps `version`, from a branch named `release-X.Y.Z`, titled `vX.Y.Z` and labelled `internal`. The branch never takes the tag's name. Its description, down to the first `---` line, is the release's summary, like what to change in a breaking release. Once it's merged, tag that commit and push the tag.
 
 ```sh
 git switch main && git pull && git tag v0.5.0 && git push origin v0.5.0
