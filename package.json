@@ -8,7 +8,9 @@
     "build": "vp build",
     "preview": "vp preview",
     "check": "vp lint && vp fmt --check",
-    "fix": "vp lint --fix && vp fmt"
+    "fix": "vp lint --fix && vp fmt",
+    "verify": "pnpm check && pnpm build",
+    "ship": "cf deploy --prebuilt"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "2.0.0-beta.sha-91c870c02",
@@ -20,7 +22,7 @@
     "packageManager": {
       "name": "pnpm",
       "version": "12.9.1",
-      "onFail": "error"
+      "onFail": "download"
     },
     "runtime": {
       "name": "node",

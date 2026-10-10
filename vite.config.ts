@@ -16,17 +16,7 @@ export default defineConfig({
       name: "commit",
       transformIndexHtml: (html) => html.replaceAll("__COMMIT__", commit),
     },
-    cloudflare({
-      assetsOnly: true,
-      config: {
-        name: "static",
-        compatibilityDate: "2026-10-09",
-        domains: ["static.amitkaps.com"],
-        assets: {
-          // Serve 404.html for any missing address.
-          notFoundHandling: "404-page",
-        },
-      },
-    }),
+    // The Worker's config is in cloudflare.config.ts.
+    cloudflare({ assetsOnly: true }),
   ],
 });
