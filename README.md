@@ -13,6 +13,7 @@ pnpm ship         # upload the last build (normally left to the Git integration)
 pnpm prose        # read the repository as a document
 pnpm drift        # check every repository against the standard, as of GitHub's main
 pnpm drift --local  # the same, from the checkouts next to this one
+pnpm protect      # apply the branch rules and merge settings on GitHub
 ```
 
 ## What's here
@@ -26,6 +27,9 @@ pnpm-workspace.yaml     pnpm's settings, the same in every repository
 docs/                   the standard and its lessons
 scripts/                the survey, pnpm drift, and the home page's tables
 tsconfig.json           the strict type checks, which lint runs
+.github/ruleset.json    the branch rules every main has
+.github/settings.json   the merge settings every repository has
+AGENTS.md, CLAUDE.md    instructions for agents, opening with the shared sections
 ```
 
 ## Deploy

@@ -9,15 +9,33 @@
  * logged in and `CLOUDFLARE_ACCOUNT_ID` set. A held check is printed with its reason, and doesn't
  * count as drift. That check stays here and off the site, since
  * the build has no Cloudflare login.
+ *
+ * `--github` also reads each repository's merge settings, which GitHub shows only to its owner, so
+ * it needs `gh` logged in. They're compared with [.github/settings.json](../.github/settings.json).
  */
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { nodeMajor, survey } from "./survey.ts";
+import { OWNER, nodeMajor, survey } from "./survey.ts";
 
 const here = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cloudflare = process.argv.includes("--cloudflare");
 const local = process.argv.includes("--local");
+const github = process.argv.includes("--github");
+
+const settings = JSON.parse(readFileSync(join(here, ".github", "settings.json"), "utf8")) as Record<
+  string,
+  unknown
+>;
+
+function merges(repo: string): string[] {
+  const out = execFileSync("gh", ["api", `repos/${OWNER}/${repo}`], { encoding: "utf8" });
+  const found = JSON.parse(out) as Record<string, unknown>;
+  return Object.entries(settings)
+    .filter(([key, want]) => found[key] !== want)
+    .map(([key, want]) => `GitHub ${key} is ${String(found[key])}, not ${String(want)}`);
+}
 
 /** @prose
  * # The dashboard's settings
@@ -66,6 +84,7 @@ for (const result of await survey({ local })) {
   const findings = result.findings.flatMap((f) => (f ? [f] : []));
   const drift = result.error ? [result.error] : findings.flatMap((f) => (f.held ? [] : f.drift));
   if (cloudflare && result.worker) drift.push(...builds(result.worker.name));
+  if (github) drift.push(...merges(result.repo));
   const held = findings.filter((f) => f.held);
   drifted ||= drift.length > 0;
   console.log(drift.length ? `✗ ${result.repo}` : `✓ ${result.repo}`);

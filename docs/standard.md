@@ -102,6 +102,19 @@ Previews           off
 
 `verify` fails on a failing check, so a merge that breaks one doesn't deploy. Previews stay off because CI already checks every pull request. If a repository turns them on, it sets the preview deploy command too: `pnpm exec wrangler versions upload`, or `pnpm exec cf workers versions create --prebuilt`.
 
+## GitHub
+
+Every `main` takes changes the same way. Work happens on a branch, in a pull request, and `ci` has to pass on a branch that's up to date with `main`. The pull request is squash-merged, so `main` reads as one commit per change, and nobody pushes to it, admins included.
+
+- **Branch rules:** one ruleset, named `main`, from [.github/ruleset.json](../.github/ruleset.json). It requires a pull request with no approvals, since there's one maintainer, and the `ci` check. It keeps history linear, and blocks force pushes and deleting the branch. Nobody bypasses it.
+- **Merge settings:** from [.github/settings.json](../.github/settings.json). Squash is the only merge, a branch is deleted once it's merged, and auto-merge is on.
+
+`pnpm protect` applies both, to every repository or to the ones named, and removes any classic branch protection. The home page checks the rules, which GitHub shows to anyone. `pnpm drift --github` checks the merge settings too, which only the owner can read.
+
+## Agents
+
+Every `AGENTS.md` opens with the same two sections as [this repository's](../AGENTS.md), word for word. "Standard" points at this page, and says how changes reach `main`. "Prose" points at the rules in [prose's usage](https://prose.amitkaps.com/docs/usage.md#for-agents). The rules live there, once, and aren't copied into each repository, since the copies had already started to differ. The rest of an `AGENTS.md` is the repository's own. A `CLAUDE.md` holds only `@AGENTS.md`, so Claude Code reads the same file.
+
 ## CI
 
 GitHub Actions runs one job, named `ci`, on pull requests and on `main`. It installs with `pnpm install --frozen-lockfile` and runs `pnpm run verify`, plus whatever a package adds, like publint or a size budget. Branch protection requires `ci`. Cloudflare's own check on each commit isn't required, since it runs after the merge.

@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 
 export const REPOS = ["base", "markz", "prose", "sitez", "ship"];
 
-const OWNER = "amitkaps";
+export const OWNER = "amitkaps";
 const SELF = "ship";
 const FILES = [
   "package.json",
@@ -29,6 +29,8 @@ const FILES = [
   "cloudflare.config.ts",
   "wrangler.jsonc",
   "wrangler.toml",
+  "AGENTS.md",
+  "CLAUDE.md",
 ];
 
 const here = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -164,6 +166,72 @@ function worker(files: Files): Worker | undefined {
   return undefined;
 }
 
+/** @prose
+ * # Branch rules
+ *
+ * Every repository protects `main` with the same ruleset, kept in
+ * [.github/ruleset.json](../.github/ruleset.json) and applied by `pnpm protect`. GitHub shows a
+ * public repository's branch rules to anyone, so the survey reads them without a login. A
+ * `GITHUB_TOKEN`, when set, only raises the rate limit.
+ *
+ * Each rule in the file has to be there, with the parameters the file sets. Other parameters,
+ * and rules the file doesn't name, are the repository's own.
+ */
+type Rule = { type: string; parameters?: Record<string, unknown> };
+
+const ruleset = JSON.parse(read(join(here, ".github", "ruleset.json"))) as { rules: Rule[] };
+
+async function branchRules(repo: string): Promise<Rule[] | Error> {
+  try {
+    const token = process.env["GITHUB_TOKEN"];
+    const res = await fetch(`https://api.github.com/repos/${OWNER}/${repo}/rules/branches/main`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`GitHub returned HTTP ${res.status}`);
+    return (await res.json()) as Rule[];
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+function rulesDrift(found: Rule[]): string[] {
+  if (!found.length) return ["main has no branch rules"];
+  const drift: string[] = [];
+  for (const want of ruleset.rules) {
+    const name = want.type.replaceAll("_", " ");
+    const have = found.find((rule) => rule.type === want.type);
+    if (!have) {
+      drift.push(`no ${name} rule`);
+      continue;
+    }
+    for (const [key, value] of Object.entries(want.parameters ?? {})) {
+      const got = JSON.stringify(have.parameters?.[key]);
+      if (got !== JSON.stringify(value)) {
+        drift.push(`${name}: ${key} is ${got}, not ${JSON.stringify(value)}`);
+      }
+    }
+  }
+  return drift;
+}
+
+/** @prose
+ * # The agents' instructions
+ *
+ * Every `AGENTS.md` opens with the same two sections, word for word as in this repository's:
+ * "Standard", which points at this standard, and "Prose", which points at prose's rules. The
+ * rules themselves live in one place each and aren't copied, so they can't drift. What's below
+ * those sections is the repository's own. A `CLAUDE.md` that says `@AGENTS.md` makes Claude
+ * Code read the same file.
+ */
+const SECTIONS = ["Standard", "Prose"];
+
+function section(text: string, heading: string): string | undefined {
+  const found = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m").exec(text);
+  return found?.[1]?.trim();
+}
+
+const agents = read(join(here, "AGENTS.md"));
+
 type Repo = {
   pkg: Pkg;
   files: Files;
@@ -171,6 +239,7 @@ type Repo = {
   vitePlus?: string;
   worker?: Worker;
   latest: Latest;
+  rules: Rule[] | Error;
 };
 
 /** @prose
@@ -404,6 +473,31 @@ export const CHECKS: Check[] = [
       return { value: site.file, drift };
     },
   },
+  {
+    name: "Branch rules",
+    group: "Setup",
+    rule: "main takes squashed pull requests that pass ci, from .github/ruleset.json",
+    run: ({ rules }) => {
+      if (rules instanceof Error) return { drift: [`GitHub couldn't be read: ${rules.message}`] };
+      return { drift: rulesDrift(rules) };
+    },
+  },
+  {
+    name: "AGENTS.md",
+    group: "Setup",
+    rule: "opens with the shared Standard and Prose sections, and CLAUDE.md reads it",
+    run: ({ files }) => {
+      const text = files["AGENTS.md"];
+      if (!text) return { drift: ["no AGENTS.md"] };
+      const drift = SECTIONS.flatMap((heading) => {
+        const have = section(text, heading);
+        if (!have) return [`no ${heading} section`];
+        return have === section(agents, heading) ? [] : [`${heading} section differs from ship's`];
+      });
+      if (files["CLAUDE.md"]?.trim() !== "@AGENTS.md") drift.push("CLAUDE.md isn't @AGENTS.md");
+      return { drift };
+    },
+  },
 ];
 
 export type Result = {
@@ -417,6 +511,7 @@ export type Result = {
 };
 
 async function check(repo: string, local: boolean, found: Latest): Promise<Result> {
+  const rules = branchRules(repo);
   let files: Files;
   try {
     const dir = repo === SELF ? here : join(dirname(here), repo);
@@ -434,6 +529,7 @@ async function check(repo: string, local: boolean, found: Latest): Promise<Resul
     vitePlus: deps["vite-plus"],
     worker: worker(files),
     latest: found,
+    rules: await rules,
   };
   return {
     repo,

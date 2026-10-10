@@ -2,9 +2,22 @@
 
 This repository holds the standard every repository follows, and is its working example. Read [docs/standard.md](docs/standard.md) first, then [docs/lessons.md](docs/lessons.md).
 
-- Before committing, `pnpm run verify` must pass. Run tools through `pnpm run …` and `pnpm exec`, not global installs.
-- A change to how things are done is a change to the standard. Make it here first, in the config, in `docs/standard.md` and, when it's checkable, in `scripts/drift.ts`. Then `pnpm drift` lists the repositories to bring in line.
+## Standard
+
+This repository follows the standard at [ship](https://ship.amitkaps.com), which sets how every repository builds, checks and deploys. Read [ship's docs/standard.md](https://github.com/amitkaps/ship/blob/main/docs/standard.md) before changing any of that.
+
+- Change the toolchain, scripts, versions or deploys in ship first, then bring each repository in line. Don't change them in one repository alone.
+- Work on a branch and open a pull request. CI runs `pnpm run verify`, which must pass, and the pull request is squash-merged. Nobody pushes to `main`.
+- Run tools through `pnpm run …` and `pnpm exec`, not global installs.
+- A held check on ship's page is a tool's limit, not a choice. Leave it until its reason goes away.
+
+## Prose
+
+Explanations go in `@prose` comments, written to the rules in [prose's usage](https://prose.amitkaps.com/docs/usage.md#for-agents). Read them before writing prose. They live there and aren't copied here, so every repository writes to the same rules.
+
+## This repository
+
+- A change to how things are done is a change to the standard. Make it here first, in the config, in `docs/standard.md` and, when it's checkable, in `scripts/survey.ts`. Then `pnpm drift` lists the repositories to bring in line.
 - What a change taught goes in `docs/lessons.md`, in the same change. Say what happened and what to do about it.
-- Explanations go in `@prose` comments beside what they explain, in [markz](https://markz.amitkaps.com/docs/syntax.md)'s Markdown: `_emphasis_`, never `*emphasis*`, and no raw HTML. Each starts with a short paragraph saying what the file or setting is for, then the why. Prose says what the code can't, like why it exists and what was ruled out. Rules for writing it are in [prose's usage](https://prose.amitkaps.com/docs/usage.md).
 - The `.html` pages carry no prose, since their comments ship to the browser.
 - Don't name a script after a pnpm command (`deploy`, `publish`, `audit`, `ci`, `pipeline`, `pack`).

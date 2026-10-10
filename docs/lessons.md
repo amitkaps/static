@@ -27,6 +27,12 @@ What setting up the repositories' builds and deploys taught, for whoever changes
 - **Dependabot can't bump Vite+ alone.** The override in `pnpm-workspace.yaml` has to move with it, and Dependabot doesn't edit that file, so it ignores `vite-plus`. Vite+ moves from here, in every repository at once.
 - **wrangler.jsonc hides its comments from prose.** prose reads comments in `.toml` but not `.jsonc`, so a repository still on wrangler uses `wrangler.toml`.
 
+## GitHub and agents
+
+- **Five repositories protected `main` four ways.** Classic protection in two, with different settings, a ruleset in one, and nothing in two, including this one. A ruleset is one JSON document, so it can live here and be applied everywhere with `gh api`, which classic protection can't do as cleanly.
+- **GitHub shows a public repository's branch rules to anyone, but not its merge settings.** `GET /repos/{owner}/{repo}/rules/branches/main` works without a login, so the home page checks the rules. Settings like squash-only need the owner's token, so `pnpm drift --github` checks those.
+- **Copied rules drift.** The `@prose` rules were copied into four `AGENTS.md` files and had already started to differ. Each `AGENTS.md` now links to the one copy in prose's docs, and the survey checks the link section is the same everywhere.
+
 ## Cloudflare
 
 - **The Git integration deploys whether or not GitHub CI passed.** The fix is a build command that runs the checks. `pnpm run verify` fails first, and nothing deploys.
