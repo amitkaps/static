@@ -367,7 +367,7 @@ export const CHECKS: Check[] = [
   {
     name: "Node",
     group: "Versions",
-    rule: `${node?.version} in devEngines, with onFail: ${node?.onFail}`,
+    rule: `${node?.version} in devEngines, with onFail: ${node?.onFail}, and the same in engines`,
     run: ({ pkg }) => {
       const runtime = pkg.devEngines?.runtime;
       const drift: string[] = [];
@@ -377,13 +377,17 @@ export const CHECKS: Check[] = [
       if (runtime?.onFail !== node?.onFail) {
         drift.push(`devEngines Node onFail is ${runtime?.onFail}, not ${node?.onFail}`);
       }
+      // A repository supports the Node it's built on, and nothing older.
+      if (pkg.engines?.node !== standard.engines?.node) {
+        drift.push(`engines asks for Node ${pkg.engines?.node}, not ${standard.engines?.node}`);
+      }
       return { value: runtime?.version, drift };
     },
   },
   {
     name: "@types/node",
     group: "Versions",
-    rule: "the major version of the oldest Node that engines allows",
+    rule: "the major version of the Node that engines allows",
     run: ({ pkg, deps }) => {
       const value = deps["@types/node"];
       if (!value) return undefined;
@@ -561,7 +565,7 @@ export const CHECKS: Check[] = [
   {
     name: "Package",
     group: "Release",
-    rule: "packs dist with publint, publishes publicly, bundles our packages, and CI runs the oldest Node",
+    rule: "packs dist with publint, publishes publicly, and bundles our packages",
     run: ({ pkg, files, deps }) => {
       if (pkg.private) return undefined;
       const drift: string[] = [];
@@ -577,14 +581,6 @@ export const CHECKS: Check[] = [
       for (const name of Object.keys(pkg.dependencies ?? {})) {
         if (name.startsWith("@amitkaps/"))
           drift.push(`depends on ${name}, rather than bundling it`);
-      }
-      // A package may support an older Node than it's developed on, and CI tests that one too.
-      const oldest = major(pkg.engines?.node);
-      if (oldest && oldest !== major(pkg.devEngines?.runtime?.version)) {
-        const ci = files[".github/workflows/ci.yml"] ?? "";
-        if (!new RegExp(`node-version:\\s*${oldest}\\b`).test(ci)) {
-          drift.push(`engines allows Node ${oldest}, but CI doesn't test it`);
-        }
       }
       return { drift };
     },

@@ -38,22 +38,23 @@ base, the SvelteKit starter, left Vite+ for the standalone tools. It goes back, 
 ```
 
 - **pnpm is pinned exactly, with `onFail: download`.** Whatever pnpm is installed globally, pnpm fetches and runs the pinned one, so a new pnpm release never breaks a checkout. CI reads `packageManager`, so keep the two equal.
-- **Node fails loudly.** `onFail: error` stops on the wrong Node. A package's `engines` can allow an older Node than its `devEngines`, as the oldest it supports.
+- **Node fails loudly.** `onFail: error` stops on the wrong Node.
+- **One Node, for building and for using.** `engines` says the same `>=26` as `devEngines`. A package supports the Node it's built and tested on, and nothing older, so CI runs on one Node. Node 26 is the LTS release from October 2026. When the next LTS arrives, every repository moves to it at once, and for a package that's a breaking release.
 - **Bump deliberately, everywhere at once.** Being on the latest pnpm doesn't matter. Being on the same one does.
 
 ## Other versions
 
 The tools every repository shares are on one version. Where this repository uses a tool, its version is the standard. Where it doesn't, the standard is npm's latest release.
 
-| Tool                                 | Version                                                                               |
-| ------------------------------------ | ------------------------------------------------------------------------------------- |
-| `@types/node`                        | the major of the oldest Node that `engines` allows, so a package can't use newer APIs |
-| `vite-plus`                          | this repository's, with the override at the same version and no direct `vite`         |
-| `cf`, `@cloudflare/vite-plugin`      | this repository's, in any repository that deploys with cf                             |
-| `typescript`                         | npm's latest, where a repository has it                                               |
-| `@amitkaps/prose`, `@amitkaps/markz` | npm's latest, so a new release of ours shows up everywhere it's used                  |
-| `wrangler`                           | npm's latest, while a repository is still on it                                       |
-| `publint`                            | npm's latest, in every package                                                        |
+| Tool                                 | Version                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------- |
+| `@types/node`                        | the major of the Node that `engines` allows, so code can't use newer APIs     |
+| `vite-plus`                          | this repository's, with the override at the same version and no direct `vite` |
+| `cf`, `@cloudflare/vite-plugin`      | this repository's, in any repository that deploys with cf                     |
+| `typescript`                         | npm's latest, where a repository has it                                       |
+| `@amitkaps/prose`, `@amitkaps/markz` | npm's latest, so a new release of ours shows up everywhere it's used          |
+| `wrangler`                           | npm's latest, while a repository is still on it                               |
+| `publint`                            | npm's latest, in every package                                                |
 
 A repository's own libraries, like svelte or micromark, are its own to choose.
 
@@ -123,7 +124,6 @@ markz, prose and sitez are packages, published to npm. A package is any reposito
 - **The release files** are [package/](../package/README.md)'s, copied into the package unchanged: the release workflow and `.github/release.yml`, which groups the notes. They name no package, so the copies stay identical and the survey checks them word for word.
 - **Packing:** `files` is `["dist"]`, `prepack` is `vp pack`, and `publishConfig.access` is `public`. publint runs inside `vp pack`, with `pack: { publint: { strict: true } }` and `publint` as a dev dependency, so `build` fails on a package npm would serve badly, and there's no separate publint step.
 - **Our own packages are bundled, not depended on.** prose and sitez have markz as a dev dependency, and `vp pack` puts it inside `dist/`. So a package's users never install a second markz, and each package releases on its own, in any order. Picking up a new markz takes a release of the package that bundles it.
-- **Older Node:** when `engines` allows an older Node than `devEngines`, a second CI job, named for it like `node-24`, tests that one too. It installs on the Node `devEngines` asks for, then switches Node and runs `node_modules/.bin/vp test --run`, since pnpm won't run on the older one. It isn't a required check.
 
 To release, open a pull request that bumps `version`, titled `vX.Y.Z` and labelled `internal`. Its description, down to the first `---` line, is the release's summary, like what to change in a breaking release. Once it's merged, tag that commit and push the tag.
 
