@@ -1,0 +1,399 @@
+/** @prose
+ * # The survey
+ *
+ * Reads every repository and checks it against the standard, returning what it found as data.
+ * `pnpm drift` prints it, and the build turns it into the tables on the site's home page.
+ *
+ * The standard is this repository's own settings, read from its files, so there's no second
+ * copy of it to keep in step. [docs/standard.md](../docs/standard.md) says what each check means.
+ *
+ * The other repositories are read from GitHub, from `main`, so a check run on a laptop and the
+ * one Cloudflare runs at build time see the same thing. Cloudflare's build clones only this
+ * repository, so the sibling folders on disk aren't there. This repository is read from disk,
+ * since that's the commit being built. `local` reads the siblings from disk too, to check a fix
+ * before it's pushed.
+ */
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const REPOS = ["base", "markz", "prose", "sitez", "ship"];
+
+const OWNER = "amitkaps";
+const SELF = "ship";
+const FILES = [
+  "package.json",
+  "pnpm-workspace.yaml",
+  "tsconfig.json",
+  "vite.config.ts",
+  "cloudflare.config.ts",
+  "wrangler.jsonc",
+  "wrangler.toml",
+];
+
+const here = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+type Files = Record<string, string>;
+
+type Pkg = {
+  packageManager?: string;
+  devEngines?: {
+    packageManager?: { version?: string; onFail?: string };
+    runtime?: { version?: string; onFail?: string };
+  };
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  scripts?: Record<string, string>;
+  engines?: { node?: string };
+};
+
+const read = (file: string): string => (existsSync(file) ? readFileSync(file, "utf8") : "");
+
+function fromDisk(dir: string): Files {
+  return Object.fromEntries(FILES.map((file) => [file, read(join(dir, file))]));
+}
+
+// A missing file is an empty one, as on disk. Any other failure means the repository couldn't
+// be read, and the survey says so rather than reporting drift that isn't there.
+async function fromGitHub(repo: string): Promise<Files> {
+  const entries = await Promise.all(
+    FILES.map(async (file) => {
+      const url = `https://raw.githubusercontent.com/${OWNER}/${repo}/main/${file}`;
+      const res = await fetch(url);
+      if (res.status === 404) return [file, ""];
+      if (!res.ok) throw new Error(`${file} returned HTTP ${res.status}`);
+      return [file, await res.text()];
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
+const standard = JSON.parse(read(join(here, "package.json"))) as Pkg;
+const pnpm = standard.packageManager?.replace(/^pnpm@/, "");
+const standardDeps = standard.devDependencies ?? {};
+const vitePlus = standardDeps["vite-plus"];
+const node = standard.devEngines?.runtime;
+export const nodeMajor = /\d+/.exec(standard.engines?.node ?? "")?.[0];
+
+// `^7.0.2` and `7.0.2` name the same release here, so a range is compared by its version.
+const bare = (version: string): string => version.replace(/^[\^~>=<\s]+/, "");
+const major = (version = ""): string | undefined => /\d+/.exec(version)?.[0];
+
+/** @prose
+ * # The latest releases
+ *
+ * Some tools have no version in this repository to copy, since it doesn't use them. A
+ * repository that does should be on the latest release, read from npm when the survey runs.
+ * That covers our own packages, so a new prose or markz shows up as drift everywhere it's used,
+ * and the tools that aren't ours yet are on their way out, like wrangler.
+ *
+ * A failed lookup shows in that row, rather than failing the survey.
+ */
+const LATEST = ["typescript", "wrangler", "@amitkaps/prose", "@amitkaps/markz"];
+
+type Latest = Record<string, string | Error>;
+
+async function latest(): Promise<Latest> {
+  const entries = await Promise.all(
+    LATEST.map(async (name) => {
+      try {
+        const res = await fetch(`https://registry.npmjs.org/${name}/latest`);
+        if (!res.ok) throw new Error(`npm returned HTTP ${res.status}`);
+        const { version } = (await res.json()) as { version: string };
+        return [name, version];
+      } catch (error) {
+        return [name, error instanceof Error ? error : new Error(String(error))];
+      }
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
+/** @prose
+ * # The type checks
+ *
+ * The compiler options every `tsconfig.json` turns on, beyond what a repository's own build
+ * needs. Each is found by a regular expression rather than by parsing, since a tsconfig can hold
+ * comments, and base's extends the one SvelteKit generates. The options this repository sets
+ * for itself, like `noEmit` and `allowImportingTsExtensions`, aren't checked.
+ */
+const STRICT = [
+  "strict",
+  "noUncheckedIndexedAccess",
+  "noImplicitOverride",
+  "noImplicitReturns",
+  "noFallthroughCasesInSwitch",
+  "verbatimModuleSyntax",
+  "isolatedModules",
+  "forceConsistentCasingInFileNames",
+];
+
+/** @prose
+ * # The scripts
+ *
+ * Every repository uses the same names for the same jobs, so `pnpm verify` means one thing
+ * everywhere. Most are required. `test` is there when a repository has tests, and `ship` when it
+ * has a site. On Vite+, `check` and `fix` are also the same commands, `vp check` and
+ * `vp check --fix`, since nothing about a repository changes how it checks. A separate `lint`
+ * or `fmt` script would only repeat half of `check`. The others differ by kind: a package's
+ * `build` is `vp pack`, and a site's is `vp build`.
+ *
+ * Anything else, like a package's `size` or `fuzz`, is the repository's own. Names that are
+ * pnpm's own commands are ruled out, since `pnpm <name>` skips a script by that name.
+ */
+export const SHARED = ["dev", "build", "check", "fix", "test", "verify", "ship", "prose"];
+const REQUIRED = ["dev", "build", "check", "fix", "verify", "prose"];
+const SAME = ["check", "fix"];
+const standardScripts = standard.scripts ?? {};
+const PNPM_COMMANDS = ["deploy", "publish", "audit", "ci", "pipeline", "pack"];
+
+/** @prose
+ * # A repository's Worker
+ *
+ * A repository deploys if it has a Cloudflare config, and the Worker's name is read from it.
+ * `cloudflare.config.ts` is the target; `wrangler.jsonc` and `wrangler.toml` are the ones
+ * still on wrangler. A regular expression is enough, since each file states `name` once.
+ */
+export type Worker = { file: string; name: string };
+
+function worker(files: Files): Worker | undefined {
+  for (const file of ["cloudflare.config.ts", "wrangler.jsonc", "wrangler.toml"]) {
+    const name = /^\s*"?name"?\s*[:=]\s*"([^"]+)"/m.exec(files[file] ?? "")?.[1];
+    if (name) return { file, name };
+  }
+  return undefined;
+}
+
+type Repo = {
+  pkg: Pkg;
+  files: Files;
+  deps: Record<string, string>;
+  vitePlus?: string;
+  worker?: Worker;
+  latest: Latest;
+};
+
+/** @prose
+ * # The checks
+ *
+ * Each check covers one part of the standard, and says what it expects in a line the page shows
+ * beside it. The versions come first, then how the repository is set up. A check returns what
+ * the repository has, like the version it pins, and what has drifted, which is empty when
+ * nothing has. It returns `undefined` when it doesn't apply, like the Cloudflare check for a
+ * package with no site, or the typescript check for a repository without typescript.
+ */
+export type Finding = { value?: string; drift: string[] };
+
+export type Check = {
+  name: string;
+  group: "Versions" | "Setup";
+  rule: string;
+  run: (repo: Repo) => Finding | undefined;
+};
+
+// A tool that should match npm's latest release, where a repository uses it.
+const toLatest = (name: string, rule: string): Check => ({
+  name,
+  group: "Versions",
+  rule,
+  run: ({ deps, latest: found }) => {
+    const value = deps[name];
+    if (!value) return undefined;
+    const want = found[name];
+    if (want instanceof Error) return { value, drift: [`npm couldn't be read: ${want.message}`] };
+    return { value, drift: bare(value) === want ? [] : [`${name} is ${value}, not ${want}`] };
+  },
+});
+
+// A tool that should match this repository's version, where another repository uses it.
+const toOurs = (name: string): Check => ({
+  name,
+  group: "Versions",
+  rule: `${standardDeps[name]}, where a repository deploys with cf`,
+  run: ({ deps }) => {
+    const value = deps[name];
+    if (!value) return undefined;
+    const want = standardDeps[name];
+    return { value, drift: value === want ? [] : [`${name} is ${value}, not ${want}`] };
+  },
+});
+
+export const CHECKS: Check[] = [
+  {
+    name: "Node",
+    group: "Versions",
+    rule: `${node?.version} in devEngines, with onFail: ${node?.onFail}`,
+    run: ({ pkg }) => {
+      const runtime = pkg.devEngines?.runtime;
+      const drift: string[] = [];
+      if (runtime?.version !== node?.version) {
+        drift.push(`devEngines asks for Node ${runtime?.version}, not ${node?.version}`);
+      }
+      if (runtime?.onFail !== node?.onFail) {
+        drift.push(`devEngines Node onFail is ${runtime?.onFail}, not ${node?.onFail}`);
+      }
+      return { value: runtime?.version, drift };
+    },
+  },
+  {
+    name: "@types/node",
+    group: "Versions",
+    rule: "the major version of the oldest Node that engines allows",
+    run: ({ pkg, deps }) => {
+      const value = deps["@types/node"];
+      if (!value) return undefined;
+      const oldest = major(pkg.engines?.node ?? pkg.devEngines?.runtime?.version);
+      const drift =
+        major(value) === oldest
+          ? []
+          : [`@types/node is ${value}, but engines allows Node ${oldest}`];
+      return { value, drift };
+    },
+  },
+  {
+    name: "pnpm",
+    group: "Versions",
+    rule: `${pnpm}, pinned in devEngines with onFail: download`,
+    run: ({ pkg }) => {
+      const drift: string[] = [];
+      if (pkg.packageManager !== `pnpm@${pnpm}`) {
+        drift.push(`packageManager is ${pkg.packageManager}, not pnpm@${pnpm}`);
+      }
+      const engine = pkg.devEngines?.packageManager;
+      if (engine?.version !== pnpm) {
+        drift.push(`devEngines pins pnpm ${engine?.version}, not ${pnpm}`);
+      }
+      if (engine?.onFail !== "download") {
+        drift.push(`devEngines pnpm onFail is ${engine?.onFail}, not download`);
+      }
+      return { value: pkg.packageManager?.replace(/^pnpm@/, ""), drift };
+    },
+  },
+  {
+    name: "vite-plus",
+    group: "Versions",
+    rule: `${vitePlus}, with every vite pointed at the same version, and no vite of its own`,
+    run: ({ files, deps, vitePlus: own }) => {
+      if (!own) return { drift: ["not on Vite+"] };
+      const drift: string[] = [];
+      if (own !== vitePlus) drift.push(`vite-plus is ${own}, not ${vitePlus}`);
+      const override = /vite-plus-core@([\w.-]+)/.exec(files["pnpm-workspace.yaml"] ?? "")?.[1];
+      if (!override) drift.push("pnpm-workspace.yaml has no vite override");
+      else if (override !== vitePlus) {
+        drift.push(`pnpm-workspace.yaml points vite at ${override}, not ${vitePlus}`);
+      }
+      if (deps.vite) drift.push(`depends on vite ${deps.vite} directly`);
+      return { value: own, drift };
+    },
+  },
+  toLatest("typescript", "npm's latest, where a repository has it"),
+  toLatest("@amitkaps/prose", "npm's latest, where a repository uses it"),
+  toLatest("@amitkaps/markz", "npm's latest, where a repository uses it"),
+  toOurs("cf"),
+  toOurs("@cloudflare/vite-plugin"),
+  toLatest("wrangler", "npm's latest, while a repository is still on it"),
+  {
+    name: "Types",
+    group: "Setup",
+    rule: "tsconfig.json turns on the strict options",
+    run: ({ files }) => {
+      const tsconfig = files["tsconfig.json"];
+      if (!tsconfig) return { drift: ["no tsconfig.json"] };
+      const drift = STRICT.filter(
+        (flag) => !new RegExp(`"${flag}"\\s*:\\s*true`).test(tsconfig),
+      ).map((flag) => `tsconfig.json doesn't set ${flag}`);
+      return { drift };
+    },
+  },
+  {
+    name: "Lint",
+    group: "Setup",
+    rule: "type-aware lint that also type-checks",
+    run: ({ files, vitePlus: own }) => {
+      // Without Vite+ there's no lint block to read, and the vite-plus check already says so.
+      if (!own) return undefined;
+      const vite = files["vite.config.ts"] ?? "";
+      const drift: string[] = [];
+      if (!/typeAware:\s*true/.test(vite)) drift.push("lint isn't type-aware");
+      if (!/typeCheck:\s*true/.test(vite)) drift.push("lint doesn't type-check");
+      return { drift };
+    },
+  },
+  {
+    name: "Scripts",
+    group: "Setup",
+    rule: "the shared names, and none of pnpm's own",
+    run: ({ pkg, vitePlus: own, worker: site }) => {
+      const scripts = pkg.scripts ?? {};
+      const required = site ? [...REQUIRED, "ship"] : REQUIRED;
+      // On Vite+, `check` and `fix` are the same commands everywhere, read from this repository.
+      const exact = own
+        ? SAME.filter((name) => scripts[name] && scripts[name] !== standardScripts[name])
+        : [];
+      const drift = [
+        ...required.filter((name) => !scripts[name]).map((name) => `no ${name} script`),
+        ...exact.map((name) => `${name} is ${scripts[name]}, not ${standardScripts[name]}`),
+        ...(own ? ["lint", "fmt"] : [])
+          .filter((name) => scripts[name])
+          .map((name) => `has a ${name} script, which check and fix cover`),
+        ...PNPM_COMMANDS.filter((name) => scripts[name]).map(
+          (name) => `has a ${name} script, which pnpm ${name} never runs`,
+        ),
+      ];
+      return { drift };
+    },
+  },
+  {
+    name: "Cloudflare",
+    group: "Setup",
+    rule: "a site deploys with cloudflare.config.ts",
+    run: ({ worker: site }) => {
+      if (!site) return undefined;
+      const drift =
+        site.file === "cloudflare.config.ts" ? [] : [`still on wrangler (${site.file})`];
+      return { value: site.file, drift };
+    },
+  },
+];
+
+export type Result = {
+  repo: string;
+  // Set when the repository couldn't be read, and then nothing else is.
+  error?: string;
+  // One entry per check, in the order of `CHECKS`.
+  findings: (Finding | undefined)[];
+  scripts: Record<string, string>;
+  worker?: Worker;
+};
+
+async function check(repo: string, local: boolean, found: Latest): Promise<Result> {
+  let files: Files;
+  try {
+    const dir = repo === SELF ? here : join(dirname(here), repo);
+    files = repo === SELF || local ? fromDisk(dir) : await fromGitHub(repo);
+  } catch (error) {
+    return { repo, error: `couldn't be read: ${String(error)}`, findings: [], scripts: {} };
+  }
+  if (!files["package.json"]) return { repo, error: "no package.json", findings: [], scripts: {} };
+  const pkg = JSON.parse(files["package.json"]) as Pkg;
+  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  const it: Repo = {
+    pkg,
+    files,
+    deps,
+    vitePlus: deps["vite-plus"],
+    worker: worker(files),
+    latest: found,
+  };
+  return {
+    repo,
+    findings: CHECKS.map((c) => c.run(it)),
+    scripts: pkg.scripts ?? {},
+    worker: it.worker,
+  };
+}
+
+export async function survey({ local = false } = {}): Promise<Result[]> {
+  const found = await latest();
+  return Promise.all(REPOS.map((repo) => check(repo, local, found)));
+}

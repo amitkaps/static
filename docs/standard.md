@@ -1,6 +1,6 @@
 # The standard
 
-How every repository builds, checks and deploys. There's one way to do each thing, and this repository is the working example of it. `pnpm drift` checks the others against it and lists where each has drifted.
+How every repository builds, checks and deploys. There's one way to do each thing, and this repository is the working example of it. `pnpm drift` checks the others against it and lists where each has drifted, and the home page at ship.amitkaps.com shows the same as tables.
 
 The repositories are base, markz, prose, sitez and this one. Where this page gives a version, the real value is in this repository's files, and `pnpm drift` reads it from there.
 
@@ -9,6 +9,18 @@ The repositories are base, markz, prose, sitez and this one. Where this page giv
 One `vite.config.ts`, run through `vp`, covers dev, build, format, lint and test. A package builds with `vp pack`, which is part of Vite+, so there's no separate bundler. `defineConfig` comes from `vite-plus`.
 
 Vite+ ships its own build of Vite. Each repository points every `vite` at it with an override in `pnpm-workspace.yaml`, and turns off pnpm's peer checks for `vite`, since that build is an npm alias. Bump `vite-plus` and the override together, in every repository at once. A version that differs between repositories is the drift that makes Vite+ painful.
+
+Formatting runs at oxfmt's defaults, written as an empty `fmt: {}` so the config says so. Lint is type-aware and type-checks too, so `check` covers types without a separate `tsc`:
+
+```ts
+lint: {
+  plugins: ["typescript", "unicorn", "import"],
+  categories: { correctness: "error" },
+  options: { typeAware: true, typeCheck: true },
+},
+```
+
+The types come from `tsconfig.json`, and every one turns on the same strict options: `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `verbatimModuleSyntax`, `isolatedModules` and `forceConsistentCasingInFileNames`. This repository's [tsconfig.json](../tsconfig.json) is the example. The rest of a tsconfig, like `include` and `types`, is the repository's own.
 
 base, the SvelteKit starter, left Vite+ for the standalone tools. It goes back, and `pnpm drift` lists it until then.
 
@@ -29,6 +41,21 @@ base, the SvelteKit starter, left Vite+ for the standalone tools. It goes back, 
 - **Node fails loudly.** `onFail: error` stops on the wrong Node. A package's `engines` can allow an older Node than its `devEngines`, as the oldest it supports.
 - **Bump deliberately, everywhere at once.** Being on the latest pnpm doesn't matter. Being on the same one does.
 
+## Other versions
+
+The tools every repository shares are on one version. Where this repository uses a tool, its version is the standard. Where it doesn't, the standard is npm's latest release.
+
+| Tool                                 | Version                                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `@types/node`                        | the major of the oldest Node that `engines` allows, so a package can't use newer APIs |
+| `vite-plus`                          | this repository's, with the override at the same version and no direct `vite`         |
+| `cf`, `@cloudflare/vite-plugin`      | this repository's, in any repository that deploys with cf                             |
+| `typescript`                         | npm's latest, where a repository has it                                               |
+| `@amitkaps/prose`, `@amitkaps/markz` | npm's latest, so a new release of ours shows up everywhere it's used                  |
+| `wrangler`                           | npm's latest, while a repository is still on it                                       |
+
+A repository's own libraries, like svelte or micromark, are its own to choose.
+
 `pnpm-workspace.yaml` is a settings file, not a workspace. Every repository has the same three settings: `minimumReleaseAge`, `allowBuilds` (esbuild and workerd, when wrangler or the Cloudflare plugin is installed), and the Vite+ override.
 
 ## Scripts
@@ -39,12 +66,14 @@ Every repository uses these names, and runs them with `pnpm run …` in anything
 | -------- | ------------------------------------------------------------------------- |
 | `dev`    | the dev server, or `vp pack --watch` for a package                        |
 | `build`  | the production build                                                      |
-| `check`  | format, lint and types                                                    |
-| `fix`    | writes the format and lint fixes                                          |
+| `check`  | format, lint and types: `vp check`                                        |
+| `fix`    | writes the format and lint fixes: `vp check --fix`                        |
 | `test`   | the tests, when there are any                                             |
 | `verify` | `check`, `test` and `build`, then the site if there is one                |
 | `ship`   | uploads what `verify` built: `cf deploy --prebuilt`, or `wrangler deploy` |
 | `prose`  | reads the repository as a document                                        |
+
+`dev`, `build`, `check`, `fix`, `verify` and `prose` are in every repository. `test` is there when there are tests, and `ship` when there's a site. Any other script is the repository's own, like a package's `size` or `fuzz`, On Vite+, `check` and `fix` are exactly `vp check` and `vp check --fix`, with no separate `lint` or `fmt` scripts. The home page lists every script side by side, so two repositories using one name for different jobs shows up.
 
 `verify` is what CI runs and what Cloudflare runs before each deploy, so the two can't disagree. `ship` never builds. Some names are pnpm's own commands, and a script by one of those names is skipped by `pnpm <name>`. Don't use `deploy`, `publish`, `audit`, `ci`, `pipeline` or `pack` for a script.
 

@@ -8,6 +8,18 @@ What setting up the repositories' builds and deploys taught, for whoever changes
 - **Some script names never run.** `pnpm deploy`, `pnpm audit`, `pnpm publish` and `pnpm ci` are pnpm's own commands, so a script by one of those names is skipped. That's why the deploy script is `ship` and the drift check is `drift`.
 - **`npx` refuses to run in a repository whose `devEngines` names pnpm.** Use `pnpm exec` for an installed tool, and `pnpm dlx` for one that isn't.
 
+## Vite+
+
+- **Type-aware lint finds what the default lint misses.** Turning it on here flagged an `unknown` value in a template string in `drift.ts`. It needs no `typescript` dependency, since Vite+ installs tsgolint. With `typeCheck: true` it also reports compiler errors, like `TS2322`, so `check` replaces `tsc`.
+- **There's no `vp fix`.** `vp check --fix` writes the format and lint fixes, so `check` and `fix` are one command with and without a flag. `vp check` also runs the type check when `typeCheck` is on, so `vp lint && vp fmt --check` was doing the same job in two steps.
+- **With no `fmt` block, `vp fmt` prints "No config found, using defaults."** It still passes. An empty `fmt: {}` keeps the defaults and drops the notice.
+
+## The survey
+
+- **The Cloudflare build can't see the other repositories.** Workers Builds clones only this one, so a survey that read sibling folders found nothing there. It reads them from GitHub's `main` instead, which is public and needs no token. A GitHub outage shows in the table rather than failing the build, so it never blocks a deploy.
+
+- **Checking versions found drift the setup checks missed.** prose asked for Node 24 in `devEngines`, had no vite override at all, and two repositories were a minor release behind on markz. Each was a version nobody had looked at since it was set. A tool this repository doesn't use is compared with npm's latest, read at build time.
+
 ## Cloudflare
 
 - **The Git integration deploys whether or not GitHub CI passed.** The fix is a build command that runs the checks. `pnpm run verify` fails first, and nothing deploys.

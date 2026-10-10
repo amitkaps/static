@@ -2,7 +2,7 @@
 
 How every repository builds, checks and deploys, kept as one working example. [The standard](docs/standard.md) says what the one way is, and [the lessons](docs/lessons.md) say why. This repository follows it exactly, and `pnpm drift` checks the others against it.
 
-It's also a live site, at `ship.amitkaps.com`: a minimal static site, with one `index.html` and a `404.html`, built with Vite+ and deployed to Cloudflare with cf. Any new site starts by copying it.
+It's also a live site, at `ship.amitkaps.com`: a minimal static site, with one `index.html` and a `404.html`, built with Vite+ and deployed to Cloudflare with cf. Any new site starts by copying it. The home page shows the drift check as two tables, the checks and every repository's scripts, as of the last deploy.
 
 ```sh
 # needs Node 26: package.json (devEngines) pins it, and pnpm fetches its own pinned version
@@ -11,7 +11,8 @@ pnpm dev          # local dev server
 pnpm verify       # check + build: what CI and every deploy run
 pnpm ship         # upload the last build (normally left to the Git integration)
 pnpm prose        # read the repository as a document
-pnpm drift        # check every repository against the standard
+pnpm drift        # check every repository against the standard, as of GitHub's main
+pnpm drift --local  # the same, from the checkouts next to this one
 ```
 
 ## What's here
@@ -23,7 +24,8 @@ cloudflare.config.ts    the Worker: name, domain and asset handling
 pnpm-workspace.yaml     pnpm's settings, the same in every repository
 .github/workflows/      CI, which runs pnpm run verify
 docs/                   the standard and its lessons
-scripts/                pnpm drift
+scripts/                the survey, pnpm drift, and the home page's tables
+tsconfig.json           the strict type checks, which lint runs
 ```
 
 ## Deploy

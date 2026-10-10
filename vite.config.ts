@@ -2,14 +2,16 @@
  * # The build
  *
  * One Vite+ config builds the two pages and hands them to Cloudflare. Vite+ also runs the
- * format and lint checks, so there's no other tool config. The Worker itself is described in
- * [cloudflare.config.ts](cloudflare.config.ts), not here.
+ * format and lint checks, so the only other tool config is `tsconfig.json`, for the types. The
+ * Worker itself is described in [cloudflare.config.ts](cloudflare.config.ts), not here.
  *
- * `defineConfig` comes from `vite-plus`, not `vite`, so the `fmt` and `lint` blocks it allows
- * would type-check here too. They aren't needed yet: both run at their defaults.
+ * `defineConfig` comes from `vite-plus`, not `vite`, so the `fmt` and `lint` blocks below
+ * type-check too.
  */
 import { defineConfig } from "vite-plus";
 import { cloudflare } from "@cloudflare/vite-plugin";
+import { survey } from "./scripts/survey.ts";
+import { tables } from "./scripts/tables.ts";
 
 /** @prose
  * # The commit in the footer
@@ -18,6 +20,19 @@ import { cloudflare } from "@cloudflare/vite-plugin";
  * last push deployed. Workers Builds sets `WORKERS_CI_COMMIT_SHA`, and a local build says `dev`.
  */
 const commit = (process.env.WORKERS_CI_COMMIT_SHA ?? "dev").slice(0, 7);
+
+/** @prose
+ * # The tables on the home page
+ *
+ * The build surveys every repository and writes the result into `index.html`, so the live
+ * site shows how far each one has drifted, as of its last deploy. A survey that can't reach
+ * GitHub says so in the table rather than failing the build, since that would block a deploy
+ * for a reason that has nothing to do with this repository.
+ *
+ * The survey runs once per build, or once per dev server, and only for a page that asks.
+ */
+let drift: Promise<string> | undefined;
+const driftTables = () => (drift ??= survey().then((results) => tables(results, new Date())));
 
 export default defineConfig({
   build: {
@@ -31,6 +46,11 @@ export default defineConfig({
       name: "commit",
       transformIndexHtml: (html) => html.replaceAll("__COMMIT__", commit),
     },
+    {
+      name: "drift",
+      transformIndexHtml: async (html) =>
+        html.includes("__DRIFT__") ? html.replace("__DRIFT__", await driftTables()) : html,
+    },
     /** @prose
      * # Assets only
      *
@@ -40,4 +60,21 @@ export default defineConfig({
      */
     cloudflare({ assetsOnly: true }),
   ],
+
+  // oxfmt's defaults, as the editor has them. The empty block says so, and quiets the
+  // "No config found" notice.
+  fmt: {},
+
+  /** @prose
+   * # Lint, with types
+   *
+   * Lint is type-aware, and also type-checks against `tsconfig.json`, so `pnpm check` covers
+   * format, lint and types with no separate `tsc` step. The types come from tsgolint, which
+   * Vite+ installs, so there's no `typescript` dependency.
+   */
+  lint: {
+    plugins: ["typescript", "unicorn", "import"],
+    categories: { correctness: "error" },
+    options: { typeAware: true, typeCheck: true },
+  },
 });

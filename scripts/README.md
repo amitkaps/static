@@ -2,4 +2,6 @@
 
 Tools for keeping the repositories in step. Each runs with Node, which reads TypeScript as it is, so there's no build.
 
-`pnpm drift` checks every repository against [the standard](../docs/standard.md), from the copies next to this one on disk. `pnpm drift --cloudflare` also checks each Worker's build settings, and needs `cf` logged in and `CLOUDFLARE_ACCOUNT_ID` set.
+- [survey.ts](survey.ts) reads every repository and checks it against [the standard](../docs/standard.md). The others are read from GitHub's `main`, and this one from disk.
+- [drift.ts](drift.ts) is `pnpm drift`, which prints what the survey found and exits 1 if anything has drifted. `--local` reads the other repositories from the folders next to this one instead, to check a fix before it's pushed. `--cloudflare` also checks each Worker's build settings, and needs `cf` logged in and `CLOUDFLARE_ACCOUNT_ID` set.
+- [tables.ts](tables.ts) turns the survey into the two tables on the home page, the checks and every repository's scripts. The build writes them in, so the live site shows the drift as of its last deploy.
