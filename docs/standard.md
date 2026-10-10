@@ -123,7 +123,7 @@ markz, prose and sitez are packages, published to npm. A package is any reposito
 - **The release files** are [package/](../package/README.md)'s, copied into the package unchanged: the release workflow and `.github/release.yml`, which groups the notes. They name no package, so the copies stay identical and the survey checks them word for word.
 - **Packing:** `files` is `["dist"]`, `prepack` is `vp pack`, and `publishConfig.access` is `public`. publint runs inside `vp pack`, with `pack: { publint: { strict: true } }` and `publint` as a dev dependency, so `build` fails on a package npm would serve badly, and there's no separate publint step.
 - **Our own packages are bundled, not depended on.** prose and sitez have markz as a dev dependency, and `vp pack` puts it inside `dist/`. So a package's users never install a second markz, and each package releases on its own, in any order. Picking up a new markz takes a release of the package that bundles it.
-- **Older Node:** when `engines` allows an older Node than `devEngines`, CI tests that one too.
+- **Older Node:** when `engines` allows an older Node than `devEngines`, a second CI job, named for it like `node-24`, tests that one too. It installs on the Node `devEngines` asks for, then switches Node and runs `node_modules/.bin/vp test --run`, since pnpm won't run on the older one. It isn't a required check.
 
 To release, open a pull request that bumps `version`, titled `vX.Y.Z` and labelled `internal`. Its description, down to the first `---` line, is the release's summary, like what to change in a breaking release. Once it's merged, tag that commit and push the tag.
 
