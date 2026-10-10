@@ -14,6 +14,7 @@ pnpm prose        # read the repository as a document
 pnpm drift        # check every repository against the standard, as of GitHub's main
 pnpm drift --local  # the same, from the checkouts next to this one
 pnpm protect      # apply the branch rules, merge settings and package labels on GitHub
+pnpm release sitez 0.5.0  # open the pull request that releases a package
 ```
 
 ## What's here
